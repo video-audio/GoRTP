@@ -137,4 +137,8 @@ func init() {
 	// 72-76     Reserved for RTCP conflict avoidance
 	// 77-95     Unassigned      ?
 	// 96-127    dynamic         ?
+
+	PayloadFormatMap[96] = &PayloadFormat{96, Video, 90000, 0, "VP8"}
+
+	PayloadFormatMap[111] = &PayloadFormat{111, Audio, 48000, 0, "OPUS"}
 }

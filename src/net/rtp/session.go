@@ -161,6 +161,13 @@ func NewSession(tpw TransportWrite, tpr TransportRecv) *Session {
 	return rs
 }
 
+func (rs *Session) AddRemoteNonStrict(remote *Address) (index uint32, err error) {
+	rs.remotes[rs.remoteIndex] = remote
+	index = rs.remoteIndex
+	rs.remoteIndex++
+	return index, nil
+}
+
 // AddRemote adds the address and RTP port number of an additional remote peer.
 //
 // The port number must be even. The socket with the even port number sends and receives
@@ -717,11 +724,11 @@ func (rs *Session) SetEndChannel(ch TransportEnd) {
 // This functions updates some statistical values to enable RTCP processing.
 //
 func (rs *Session) WriteData(rp *DataPacket) (n int, err error) {
-
 	strOut, _, _ := rs.lookupSsrcMapOut(rp.Ssrc())
 	if strOut.streamStatus != active {
 		return 0, nil
 	}
+
 	strOut.SenderPacketCnt++
 	strOut.SenderOctectCnt += uint32(len(rp.Payload()))
 
@@ -736,9 +743,10 @@ func (rs *Session) WriteData(rp *DataPacket) (n int, err error) {
 
 	// Check here if SRTP is enabled for the SSRC of the packet - a stream attribute
 	for _, remote := range rs.remotes {
-		_, err := rs.transportWrite.WriteDataTo(rp, remote)
-		if err != nil {
+		if written, err := rs.transportWrite.WriteDataTo(rp, remote); err != nil {
 			return 0, err
+		} else {
+			n = written
 		}
 	}
 	return n, nil

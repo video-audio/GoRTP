@@ -25,7 +25,10 @@ import (
 )
 
 const (
-	defaultBufferSize  = 1200
+	// 1460 = MTU
+	// with an MTU size that is often limited by the
+	// Ethernet MTU size; roughly 1500 bytes
+	defaultBufferSize  = 1472
 	freeListLengthRtp  = 10
 	freeListLengthRtcp = 5
 	rtpHeaderLength    = 12
@@ -92,7 +95,7 @@ const (
 
 // nullArray is what it's names says: a long array filled with zeros.
 // used to clear (fill with zeros) arrays/slices inside a buffer by copying.
-var nullArray [1200]byte
+var nullArray [1472]byte
 
 type RawPacket struct {
 	inUse    int
@@ -111,12 +114,24 @@ func (raw *RawPacket) Buffer() []byte {
 	return raw.buffer
 }
 
+func (raw *RawPacket) SetIsFree(v bool) {
+	raw.isFree = v
+}
+
+func (raw *RawPacket) SetBuffer(b []byte) {
+	raw.buffer = b
+}
+
 // InUse returns the number of valid bytes in the packet buffer.
 // Several function modify the inUse variable, for example when copying payload or setting extensions
 // in the RTP packet. Thus "buffer[0:inUse]" is the slice inside the buffer that will be sent or
 // was received.
 func (rp *RawPacket) InUse() int {
 	return rp.inUse
+}
+
+func (raw *RawPacket) SetInUse(iu int) {
+	raw.inUse = iu
 }
 
 // *** RTP specific functions start here ***
@@ -403,7 +418,6 @@ func (rp *DataPacket) Payload() []byte {
 // in SetPadding. SetPayload performs padding only if the payload length is greate zero. A payload of
 // zero length removes an existing payload including a possible padding
 func (rp *DataPacket) SetPayload(payload []byte) {
-
 	payOffset := int(rp.CsrcCount()*4+rtpHeaderLength) + rp.ExtensionLength()
 	payloadLenOld := rp.inUse - payOffset
 
@@ -439,16 +453,17 @@ func (rp *DataPacket) SetPayload(payload []byte) {
 		rp.buffer[padOffset] = byte(pad)
 		rp.inUse += pad
 	}
-	return
 }
 
 func (rp *DataPacket) IsValid() bool {
 	if (rp.buffer[0] & version2Bit) != version2Bit {
 		return false
 	}
+
 	if PayloadFormatMap[int(rp.PayloadType())] == nil {
 		return false
 	}
+
 	return true
 }
 
@@ -468,18 +483,25 @@ func (rp *DataPacket) Print(label string) {
 
 	if rp.CsrcCount() > 0 {
 		cscr := rp.CsrcList()
+
 		fmt.Printf("  CSRC list:\n")
+
 		for i, v := range cscr {
 			fmt.Printf("      %d: %d (0x%x)\n", i, v, v)
 		}
 	}
+
 	if rp.ExtensionBit() {
 		extLen := rp.ExtensionLength()
 		fmt.Printf("  Extentsion length: %d\n", extLen)
+
 		offsetExt := rtpHeaderLength + int(rp.CsrcCount()*4)
+
 		fmt.Printf("    extension: %s\n", hex.EncodeToString(rp.buffer[offsetExt:offsetExt+extLen]))
 	}
+
 	payOffset := rtpHeaderLength + int(rp.CsrcCount()*4) + rp.ExtensionLength()
+
 	fmt.Printf("  payload: %s\n", hex.EncodeToString(rp.buffer[payOffset:rp.inUse]))
 }
 
@@ -494,7 +516,6 @@ var freeListRtcp = make(chan *CtrlPacket, freeListLengthRtcp)
 
 // newCtrlPacket gets a raw packet, initializes the first fixed RTCP header, advances inUse to point after new fixed header.
 func newCtrlPacket() (rp *CtrlPacket, offset int) {
-
 	// Grab a packet if available; allocate if not.
 	select {
 	case rp = <-freeListRtcp: // Got one; nothing more to do.
@@ -502,9 +523,11 @@ func newCtrlPacket() (rp *CtrlPacket, offset int) {
 		rp = new(CtrlPacket) // None free, so allocate a new one.
 		rp.buffer = make([]byte, defaultBufferSize)
 	}
+
 	rp.buffer[0] = version2Bit // RTCP: V = 2, P, RC = 0
 	rp.inUse = rtcpHeaderLength
 	offset = rtcpHeaderLength
+
 	return
 }
 
