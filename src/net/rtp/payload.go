@@ -86,6 +86,8 @@ const (
 //
 //     PayloadFormatMap[98] = &net.rtp.PayloadFormat{98, net.rtp.Audio, 41000, 2, "CD"}
 //
+var PayloadFormatMap = NewPayloadMapWithDefaultData()
+
 type PayloadFormat struct {
 	TypeNumber,
 	MediaType,
@@ -93,48 +95,75 @@ type PayloadFormat struct {
 	Channels int
 	Name string
 }
-type payloadMap map[int]*PayloadFormat
 
-var PayloadFormatMap = make(payloadMap, 25)
+type PayloadMap map[int]*PayloadFormat
 
-func init() {
-	PayloadFormatMap[0] = &PayloadFormat{0, Audio, 8000, 1, "PCMU"}
+func (pm PayloadMap) SeedWithDefaultData() {
+	pm[0] = &PayloadFormat{0, Audio, 8000, 1, "PCMU"}
 	// 1         Reserved
 	// 2         Reserved
-	PayloadFormatMap[3] = &PayloadFormat{3, Audio, 8000, 1, "GSM"}
-	PayloadFormatMap[4] = &PayloadFormat{4, Audio, 8000, 1, "G723"}
-	PayloadFormatMap[5] = &PayloadFormat{5, Audio, 8000, 1, "DVI4"}
-	PayloadFormatMap[6] = &PayloadFormat{6, Audio, 16000, 1, "DVI4"}
-	PayloadFormatMap[7] = &PayloadFormat{7, Audio, 8000, 1, "LPC"}
-	PayloadFormatMap[8] = &PayloadFormat{8, Audio, 8000, 1, "PCMA"}
-	PayloadFormatMap[9] = &PayloadFormat{9, Audio, 8000, 1, "G722"}
-	PayloadFormatMap[10] = &PayloadFormat{10, Audio, 44100, 2, "L16"}
-	PayloadFormatMap[11] = &PayloadFormat{11, Audio, 44100, 1, "L16"}
-	PayloadFormatMap[12] = &PayloadFormat{12, Audio, 8000, 1, "QCELP"}
-	PayloadFormatMap[13] = &PayloadFormat{13, Audio, 8000, 1, "CN"}
-	PayloadFormatMap[14] = &PayloadFormat{14, Audio, 90000, 0, "MPA"}
-	PayloadFormatMap[15] = &PayloadFormat{15, Audio, 8000, 1, "G728"}
-	PayloadFormatMap[16] = &PayloadFormat{16, Audio, 11025, 1, "DVI4"}
-	PayloadFormatMap[17] = &PayloadFormat{17, Audio, 22050, 1, "DVI4"}
-	PayloadFormatMap[18] = &PayloadFormat{18, Audio, 8000, 1, "G729"}
+	pm[3] = &PayloadFormat{3, Audio, 8000, 1, "GSM"}
+	pm[4] = &PayloadFormat{4, Audio, 8000, 1, "G723"}
+	pm[5] = &PayloadFormat{5, Audio, 8000, 1, "DVI4"}
+	pm[6] = &PayloadFormat{6, Audio, 16000, 1, "DVI4"}
+	pm[7] = &PayloadFormat{7, Audio, 8000, 1, "LPC"}
+	pm[8] = &PayloadFormat{8, Audio, 8000, 1, "PCMA"}
+	pm[9] = &PayloadFormat{9, Audio, 8000, 1, "G722"}
+	pm[10] = &PayloadFormat{10, Audio, 44100, 2, "L16"}
+	pm[11] = &PayloadFormat{11, Audio, 44100, 1, "L16"}
+	pm[12] = &PayloadFormat{12, Audio, 8000, 1, "QCELP"}
+	pm[13] = &PayloadFormat{13, Audio, 8000, 1, "CN"}
+	pm[14] = &PayloadFormat{14, Audio, 90000, 0, "MPA"}
+	pm[15] = &PayloadFormat{15, Audio, 8000, 1, "G728"}
+	pm[16] = &PayloadFormat{16, Audio, 11025, 1, "DVI4"}
+	pm[17] = &PayloadFormat{17, Audio, 22050, 1, "DVI4"}
+	pm[18] = &PayloadFormat{18, Audio, 8000, 1, "G729"}
 	// 19        Reserved        A
 	// 20        Unassigned      A
 	// 21        Unassigned      A
 	// 22        Unassigned      A
 	// 23        Unassigned      A
 	// 24        Unassigned      V
-	PayloadFormatMap[25] = &PayloadFormat{25, Video, 90000, 0, "CelB"}
-	PayloadFormatMap[26] = &PayloadFormat{26, Video, 90000, 0, "JPEG"}
+	pm[25] = &PayloadFormat{25, Video, 90000, 0, "CelB"}
+	pm[26] = &PayloadFormat{26, Video, 90000, 0, "JPEG"}
 	// 27        Unassigned      V
-	PayloadFormatMap[28] = &PayloadFormat{28, Video, 90000, 0, "nv"}
+	pm[28] = &PayloadFormat{28, Video, 90000, 0, "nv"}
 	// 29        Unassigned      V
 	// 30        Unassigned      V
-	PayloadFormatMap[31] = &PayloadFormat{31, Video, 90000, 0, "H261"}
-	PayloadFormatMap[32] = &PayloadFormat{32, Video, 90000, 0, "MPV"}
-	PayloadFormatMap[33] = &PayloadFormat{33, Audio | Video, 90000, 0, "MP2T"}
-	PayloadFormatMap[34] = &PayloadFormat{34, Video, 90000, 0, "H263"}
+	pm[31] = &PayloadFormat{31, Video, 90000, 0, "H261"}
+	pm[32] = &PayloadFormat{32, Video, 90000, 0, "MPV"}
+	pm[33] = &PayloadFormat{33, Audio | Video, 90000, 0, "MP2T"}
+	pm[34] = &PayloadFormat{34, Video, 90000, 0, "H263"}
 	// 35-71     Unassigned      ?
 	// 72-76     Reserved for RTCP conflict avoidance
 	// 77-95     Unassigned      ?
 	// 96-127    dynamic         ?
+}
+
+// NewPayloadMap allocates new PayloadMap
+func NewPayloadMap() PayloadMap {
+	return make(PayloadMap, 25)
+}
+
+// NewPayloadMap allocates new PayloadMap and
+// seed it with fixed known data
+func NewPayloadMapWithDefaultData() PayloadMap {
+	pm := NewPayloadMap()
+	pm.SeedWithDefaultData()
+	return pm
+}
+
+type withPayloadMap struct {
+	payloadMap PayloadMap
+}
+
+// SetPayloadMap is payloadMap attribute setter
+func (wpm *withPayloadMap) SetPayloadMap(pm PayloadMap) {
+	wpm.payloadMap = pm
+}
+
+func (wpm *withPayloadMap) initWithPayloadMap() {
+	if wpm.payloadMap == nil {
+		wpm.payloadMap = PayloadFormatMap
+	}
 }

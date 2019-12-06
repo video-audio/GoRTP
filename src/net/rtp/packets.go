@@ -158,6 +158,7 @@ func (raw *RawPacket) SetInUse(iu int) {
 //   session.WriteData(&pkt)
 type DataPacket struct {
 	RawPacket
+	withPayloadMap
 	payloadLength int16
 }
 
@@ -174,6 +175,7 @@ func newDataPacket() (rp *DataPacket) {
 	rp.buffer[0] = version2Bit // RTP: V = 2, P, X, CC = 0
 	rp.inUse = rtpHeaderLength
 	rp.isFree = false
+	rp.initWithPayloadMap()
 
 	return
 }
@@ -211,6 +213,7 @@ func (rp *DataPacket) Clone() *DataPacket {
 		},
 		payloadLength: rp.payloadLength,
 	}
+	clone.payloadMap = rp.payloadMap
 	copy(clone.buffer, rp.buffer)
 	return clone
 }
@@ -237,7 +240,8 @@ func (rp *DataPacket) SetCsrcList(csrc []uint32) {
 		return
 	}
 	tmpRp := newDataPacket() // get a new packet first
-	newBuf := tmpRp.buffer   // and get its buffer
+	tmpRp.payloadMap = rp.payloadMap
+	newBuf := tmpRp.buffer // and get its buffer
 
 	copy(newBuf, rp.buffer[0:rtpHeaderLength])              // copy fixed header
 	copy(newBuf[offsetNew:], rp.buffer[offsetOld:rp.inUse]) // copy over old content
@@ -292,7 +296,8 @@ func (rp *DataPacket) SetExtension(ext []byte) {
 		return
 	}
 	tmpRp := newDataPacket() // get a new packet first
-	newBuf := tmpRp.buffer   // and get its buffer
+	tmpRp.payloadMap = rp.payloadMap
+	newBuf := tmpRp.buffer // and get its buffer
 
 	copy(newBuf, rp.buffer[0:rtpHeaderLength])              // copy fixed header
 	copy(newBuf[offsetExt:], ext)                           // copy new extension
@@ -479,7 +484,7 @@ func (rp *DataPacket) IsValid() bool {
 	if (rp.buffer[0] & version2Bit) != version2Bit {
 		return false
 	}
-	if PayloadFormatMap[int(rp.PayloadType())] == nil {
+	if rp.payloadMap[int(rp.PayloadType())] == nil {
 		return false
 	}
 	return true

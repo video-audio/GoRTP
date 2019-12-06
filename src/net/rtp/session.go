@@ -60,6 +60,8 @@ type Session struct {
 
 	dataReceiveChanLen int
 	ctrlEventChanLen   int
+
+	withPayloadMap
 }
 
 // Remote stores a remote addess in a transport independent way.
@@ -157,6 +159,11 @@ func SessionMaxNumberInStreams(v int) SessionArg {
 	return func(s *Session) { s.MaxNumberInStreams = v }
 }
 
+// SessionPayloadMap is payloadMap functional argument
+func SessionPayloadMap(pm PayloadMap) SessionArg {
+	return func(s *Session) { s.SetPayloadMap(pm) }
+}
+
 // NewSession creates a new RTP session.
 //
 // A RTP session requires two transports:
@@ -170,6 +177,8 @@ func NewSession(tpw TransportWrite, tpr TransportRecv, fnArgs ...SessionArg) *Se
 	rs.ctrlEventChanLen = defaultCtrlEventChanLen
 	rs.MaxNumberOutStreams = defaultMaxNumberOutStreams
 	rs.MaxNumberInStreams = defaultMaxNumberInStreams
+
+	rs.initWithPayloadMap()
 
 	for _, fn := range fnArgs {
 		fn(rs)
@@ -255,6 +264,7 @@ func (rs *Session) NewSsrcStreamOut(own *Address, ssrc uint32, sequenceNo uint16
 
 	str := newSsrcStreamOut(own, ssrc, sequenceNo)
 	str.streamStatus = active
+	str.payloadMap = rs.payloadMap
 
 	// Synchronize - may be called from several Go application functions in parallel
 	rs.streamsMapMutex.Lock()
@@ -285,7 +295,7 @@ func (rs *Session) StartSession() (err error) {
 	// compute first transmission interval
 	if rs.RtcpSessionBandwidth == 0.0 { // If not set by application try to guess a value
 		for _, str := range rs.streamsOut {
-			format := PayloadFormatMap[int(str.PayloadType())]
+			format := rs.payloadMap[int(str.PayloadType())]
 			if format == nil {
 				rs.RtcpSessionBandwidth += 64000. / 20.0 // some standard: 5% of a 64000 bit connection
 			}

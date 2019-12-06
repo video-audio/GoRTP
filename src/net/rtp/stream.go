@@ -122,6 +122,8 @@ type SsrcStream struct {
 
 	// For input streams: true if RTP packet seen after last RR
 	dataAfterLastReport bool
+
+	withPayloadMap
 }
 
 const defaultCname = "GoRTP1.0.0@somewhere"
@@ -157,7 +159,7 @@ func (strm *SsrcStream) SequenceNo() uint16 {
 //  pt - the payload type number.
 //
 func (strm *SsrcStream) SetPayloadType(pt byte) (ok bool) {
-	if _, ok = PayloadFormatMap[int(pt)]; !ok {
+	if _, ok = strm.payloadMap[int(pt)]; !ok {
 		return
 	}
 	strm.payloadType = pt
@@ -181,26 +183,27 @@ func (strm *SsrcStream) StreamType() int {
  * *****************************************************************
  */
 
-func newSsrcStreamOut(own *Address, ssrc uint32, sequenceNo uint16) (so *SsrcStream) {
-	so = new(SsrcStream)
-	so.streamType = OutputStream
-	so.ssrc = ssrc
+func newSsrcStreamOut(own *Address, ssrc uint32, sequenceNo uint16) (strm *SsrcStream) {
+	strm = new(SsrcStream)
+	strm.streamType = OutputStream
+	strm.ssrc = ssrc
 	if ssrc == 0 {
-		so.newSsrc()
+		strm.newSsrc()
 	}
-	so.sequenceNumber = sequenceNo
+	strm.sequenceNumber = sequenceNo
 	if sequenceNo == 0 {
-		so.newSequence()
+		strm.newSequence()
 	}
-	so.IPAddr = own.IPAddr
-	so.DataPort = own.DataPort
-	so.CtrlPort = own.CtrlPort
-	so.Zone = own.Zone
-	so.payloadType = 0xff // initialize to illegal payload type
-	so.initialTime = time.Now().UnixNano()
-	so.newInitialTimestamp()
-	so.SdesItems = make(SdesItemMap, 2)
-	so.SetSdesItem(SdesCname, defaultCname)
+	strm.IPAddr = own.IPAddr
+	strm.DataPort = own.DataPort
+	strm.CtrlPort = own.CtrlPort
+	strm.Zone = own.Zone
+	strm.payloadType = 0xff // initialize to illegal payload type
+	strm.initialTime = time.Now().UnixNano()
+	strm.newInitialTimestamp()
+	strm.SdesItems = make(SdesItemMap, 2)
+	strm.SetSdesItem(SdesCname, defaultCname)
+	strm.initWithPayloadMap()
 	return
 }
 
@@ -225,6 +228,7 @@ func (strm *SsrcStream) newDataPacket(stamp uint32) (rp *DataPacket) {
 	rp.SetPayloadType(strm.payloadType)
 	rp.SetTimestamp(stamp + strm.initialStamp)
 	rp.SetSequence(strm.sequenceNumber)
+	rp.payloadMap = strm.payloadMap
 	strm.sequenceNumber++
 	return
 }
@@ -304,7 +308,7 @@ func (strm *SsrcStream) fillSenderInfo(info senderInfo) {
 	info.setNtpTimeStamp(sec, frac)
 
 	tm1 := uint32(tm-strm.initialTime) / 1e6 // time since session creation in ms
-	if v, ok := PayloadFormatMap[int(strm.payloadType)]; ok {
+	if v, ok := strm.payloadMap[int(strm.payloadType)]; ok {
 		tm1 *= uint32(v.ClockRate / 1e3) // compute number of samples
 		tm1 += strm.initialStamp
 		info.setRtpTimeStamp(tm1)
@@ -378,6 +382,7 @@ func newSsrcStreamIn(from *Address, ssrc uint32) (strm *SsrcStream) {
 	strm.DataPort = from.DataPort
 	strm.CtrlPort = from.CtrlPort
 	strm.SdesItems = make(SdesItemMap, 2)
+	strm.initWithPayloadMap()
 	strm.initStats()
 	return
 }
@@ -513,7 +518,7 @@ func (strm *SsrcStream) recordReceptionData(rp *DataPacket, rs *Session, recvTim
 		// compute the interarrival jitter estimation.
 		pt := int(rp.PayloadType())
 		// compute lastPacketTime to ms and clockrate as kHz
-		arrival := uint32(strm.statistics.lastPacketTime / 1e6 * int64(PayloadFormatMap[pt].ClockRate/1e3))
+		arrival := uint32(strm.statistics.lastPacketTime / 1e6 * int64(strm.payloadMap[pt].ClockRate/1e3))
 		transitTime := arrival - rp.Timestamp()
 		if strm.statistics.lastPacketTransitTime != 0 {
 			delta := int32(transitTime - strm.statistics.lastPacketTransitTime)

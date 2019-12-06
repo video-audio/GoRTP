@@ -347,6 +347,7 @@ func (rs *Session) rtcpSenderCheck(rp *CtrlPacket, offset int) (*SsrcStream, uin
 			return nil, MaxNumInStreamReachedCtrl, false
 		}
 		str = newSsrcStreamIn(&rp.fromAddr, ssrc)
+		str.payloadMap = rs.payloadMap
 		str.streamStatus = active
 		rs.streamsIn[rs.streamInIndex] = str
 		rs.streamInIndex++
@@ -522,6 +523,7 @@ func (rs *Session) replaceStream(oldOut *SsrcStream) (newOut *SsrcStream) {
 	}
 	// get new stream and copy over attributes from old stream
 	newOut = newSsrcStreamOut(&Address{oldOut.IPAddr, oldOut.DataPort, oldOut.CtrlPort, oldOut.Zone}, 0, 0)
+	newOut.payloadMap = rs.payloadMap
 
 	for itemType, itemTxt := range oldOut.SdesItems {
 		newOut.SetSdesItem(itemType, itemTxt)
